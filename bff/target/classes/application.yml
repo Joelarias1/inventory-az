@@ -1,0 +1,6 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+func:
+  productBaseUrl: ${FUNC_PRODUCT_BASE_URL:http://localhost:8081/function}
+  warehouseBaseUrl: ${FUNC_WAREHOUSE_BASE_URL:http://localhost:8082/function}

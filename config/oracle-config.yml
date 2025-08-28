@@ -1,0 +1,31 @@
+# Configuración de Oracle Database
+oracle:
+  # Configuración de conexión
+  datasource:
+    url: jdbc:oracle:thin:@${DB_HOST}:${DB_PORT}/${DB_SERVICE_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: oracle.jdbc.OracleDriver
+    
+    # Configuración del pool de conexiones
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      
+  # Configuración del Wallet
+  wallet:
+    path: ${ORACLE_WALLET_PATH:./oracle-wallet}
+    password: ${ORACLE_WALLET_PASSWORD}
+    
+  # Configuración de SSL/TLS
+  ssl:
+    enabled: true
+    verify-server-certificate: true
+    
+  # Configuración de logging
+  logging:
+    level: INFO
+    show-sql: false

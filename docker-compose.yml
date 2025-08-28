@@ -1,0 +1,15 @@
+services:
+  bff:
+    build: ./bff
+    container_name: bff
+    environment:
+      - SERVER_PORT=8080
+      - ORACLE_WALLET_LOCATION=/app/oracle-wallet
+      - TNS_ADMIN=/app/oracle-wallet
+      - ORACLE_NET_TNS_ADMIN=/app/oracle-wallet
+      - ORACLE_NET_WALLET_LOCATION=(SOURCE=(METHOD=FILE)(METHOD_DATA=(DIRECTORY=/app/oracle-wallet)))
+    ports:
+      - "8080:8080"
+    volumes:
+      # Montar la wallet de Oracle Cloud
+      - ./db/oracle-wallet:/app/oracle-wallet:ro
