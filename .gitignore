@@ -1,0 +1,37 @@
+# Oracle Wallet (contiene credenciales sensibles)
+db/oracle-wallet/
+
+# Variables de entorno (contienen credenciales)
+.env
+.env.local
+.env.production
+
+# Archivos de configuración con datos sensibles
+config/application-prod.yml
+config/application-dev.yml
+
+# Logs
+*.log
+logs/
+
+# Archivos temporales
+*.tmp
+*.temp
+
+# Archivos de IDE
+.vscode/
+.idea/
+*.iml
+
+# Archivos de build
+target/
+build/
+*.jar
+*.war
+
+# Archivos de Docker
+.dockerignore
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
