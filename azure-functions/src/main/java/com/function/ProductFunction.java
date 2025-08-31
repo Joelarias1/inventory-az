@@ -2,6 +2,8 @@ package com.function;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.sql.*;
+import java.util.Date;
 import com.microsoft.azure.functions.annotation.*;
 import com.microsoft.azure.functions.*;
 
@@ -16,7 +18,15 @@ import com.microsoft.azure.functions.*;
  */
 public class ProductFunction {
     
-    // Mock data para productos
+    // Configuración de base de datos
+    private static final String DB_URL = System.getenv("ORACLE_URL") != null ? 
+        System.getenv("ORACLE_URL") : "jdbc:oracle:thin:@localhost:1521:XE";
+    private static final String DB_USER = System.getenv("ORACLE_USER") != null ? 
+        System.getenv("ORACLE_USER") : "system";
+    private static final String DB_PASSWORD = System.getenv("ORACLE_PASSWORD") != null ? 
+        System.getenv("ORACLE_PASSWORD") : "Inventariobd123!";
+    
+    // Mock data como fallback
     private static final List<Map<String, Object>> MOCK_PRODUCTS = new ArrayList<>();
     private static int nextId = 1;
     
@@ -82,6 +92,15 @@ public class ProductFunction {
         String categoriaParam = request.getQueryParameters().get("categoria");
         String bodegaParam = request.getQueryParameters().get("bodega");
         
+        // Intentar usar Oracle primero, luego fallback a mock data
+        try (Connection conn = getConnection()) {
+            if (conn != null) {
+                return handleGetFromOracle(conn, idParam, categoriaParam, bodegaParam, request, context);
+            }
+        } catch (Exception e) {
+            context.getLogger().warning("Error conectando a Oracle, usando datos mock: " + e.getMessage());
+        }
+        
         if (idParam != null) {
             // GET por ID
             try {
@@ -133,11 +152,12 @@ public class ProductFunction {
                 return createErrorResponse(request, "ID de bodega inválido", 400);
             }
         } else {
-            // GET todos los productos
+            // GET todos los productos (mock data)
             Map<String, Object> response = new HashMap<>();
             response.put("productos", MOCK_PRODUCTS);
             response.put("total", MOCK_PRODUCTS.size());
             response.put("timestamp", new Date());
+            response.put("source", "mock-data");
             
             return createSuccessResponse(request, response);
         }
@@ -246,5 +266,169 @@ public class ProductFunction {
                 .header("Content-Type", "application/json")
                 .body(error)
                 .build();
+    }
+    
+    private Connection getConnection() throws SQLException {
+        try {
+            return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+        } catch (SQLException e) {
+            return null; // Fallback a mock data
+        }
+    }
+    
+    private HttpResponseMessage handleGetFromOracle(Connection conn, String idParam, String categoriaParam, 
+                                                  String bodegaParam, HttpRequestMessage<Optional<String>> request, 
+                                                  ExecutionContext context) throws SQLException {
+        if (idParam != null) {
+            // GET por ID desde Oracle
+            return getProductByIdFromOracle(conn, idParam, request, context);
+        } else if (categoriaParam != null) {
+            // GET por categoría desde Oracle
+            return getProductsByCategoryFromOracle(conn, categoriaParam, request, context);
+        } else if (bodegaParam != null) {
+            // GET por bodega desde Oracle  
+            return getProductsByWarehouseFromOracle(conn, bodegaParam, request, context);
+        } else {
+            // GET todos los productos desde Oracle
+            return getAllProductsFromOracle(conn, request, context);
+        }
+    }
+    
+    private HttpResponseMessage getAllProductsFromOracle(Connection conn, HttpRequestMessage<Optional<String>> request, ExecutionContext context) throws SQLException {
+        String sql = "SELECT ID, SKU, NOMBRE, DESCRIPCION, STOCK, STOCK_MINIMO, STOCK_MAXIMO, PRECIO, CATEGORIA_ID, BODEGA_ID, ESTADO, UNIDAD_MEDIDA, PESO, DIMENSIONES, CREADO_EN, MODIFICADO_EN FROM PRODUCTOS ORDER BY ID";
+        
+        List<Map<String, Object>> products = new ArrayList<>();
+        
+        try (PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+            
+            while (rs.next()) {
+                Map<String, Object> product = mapResultSetToProduct(rs);
+                products.add(product);
+            }
+        }
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("data", products);
+        response.put("total", products.size());
+        response.put("source", "oracle-database");
+        response.put("timestamp", new Date());
+        
+        return createSuccessResponse(request, response);
+    }
+    
+    private HttpResponseMessage getProductByIdFromOracle(Connection conn, String idParam, HttpRequestMessage<Optional<String>> request, ExecutionContext context) throws SQLException {
+        try {
+            int id = Integer.parseInt(idParam);
+            String sql = "SELECT ID, SKU, NOMBRE, DESCRIPCION, STOCK, STOCK_MINIMO, STOCK_MAXIMO, PRECIO, CATEGORIA_ID, BODEGA_ID, ESTADO, UNIDAD_MEDIDA, PESO, DIMENSIONES, CREADO_EN, MODIFICADO_EN FROM PRODUCTOS WHERE ID = ?";
+            
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setInt(1, id);
+                
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        Map<String, Object> product = mapResultSetToProduct(rs);
+                        
+                        Map<String, Object> response = new HashMap<>();
+                        response.put("success", true);
+                        response.put("data", product);
+                        response.put("source", "oracle-database");
+                        response.put("timestamp", new Date());
+                        
+                        return createSuccessResponse(request, response);
+                    } else {
+                        return createErrorResponse(request, "Producto no encontrado", 404);
+                    }
+                }
+            }
+        } catch (NumberFormatException e) {
+            return createErrorResponse(request, "ID inválido", 400);
+        }
+    }
+    
+    private HttpResponseMessage getProductsByCategoryFromOracle(Connection conn, String categoriaParam, HttpRequestMessage<Optional<String>> request, ExecutionContext context) throws SQLException {
+        try {
+            int categoriaId = Integer.parseInt(categoriaParam);
+            String sql = "SELECT ID, SKU, NOMBRE, DESCRIPCION, STOCK, STOCK_MINIMO, STOCK_MAXIMO, PRECIO, CATEGORIA_ID, BODEGA_ID, ESTADO, UNIDAD_MEDIDA, PESO, DIMENSIONES, CREADO_EN, MODIFICADO_EN FROM PRODUCTOS WHERE CATEGORIA_ID = ? ORDER BY ID";
+            
+            List<Map<String, Object>> products = new ArrayList<>();
+            
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setInt(1, categoriaId);
+                
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        Map<String, Object> product = mapResultSetToProduct(rs);
+                        products.add(product);
+                    }
+                }
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("data", products);
+            response.put("total", products.size());
+            response.put("categoria_id", categoriaId);
+            response.put("source", "oracle-database");
+            response.put("timestamp", new Date());
+            
+            return createSuccessResponse(request, response);
+        } catch (NumberFormatException e) {
+            return createErrorResponse(request, "ID de categoría inválido", 400);
+        }
+    }
+    
+    private HttpResponseMessage getProductsByWarehouseFromOracle(Connection conn, String bodegaParam, HttpRequestMessage<Optional<String>> request, ExecutionContext context) throws SQLException {
+        try {
+            int bodegaId = Integer.parseInt(bodegaParam);
+            String sql = "SELECT ID, SKU, NOMBRE, DESCRIPCION, STOCK, STOCK_MINIMO, STOCK_MAXIMO, PRECIO, CATEGORIA_ID, BODEGA_ID, ESTADO, UNIDAD_MEDIDA, PESO, DIMENSIONES, CREADO_EN, MODIFICADO_EN FROM PRODUCTOS WHERE BODEGA_ID = ? ORDER BY ID";
+            
+            List<Map<String, Object>> products = new ArrayList<>();
+            
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setInt(1, bodegaId);
+                
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        Map<String, Object> product = mapResultSetToProduct(rs);
+                        products.add(product);
+                    }
+                }
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("data", products);
+            response.put("total", products.size());
+            response.put("bodega_id", bodegaId);
+            response.put("source", "oracle-database");
+            response.put("timestamp", new Date());
+            
+            return createSuccessResponse(request, response);
+        } catch (NumberFormatException e) {
+            return createErrorResponse(request, "ID de bodega inválido", 400);
+        }
+    }
+    
+    private Map<String, Object> mapResultSetToProduct(ResultSet rs) throws SQLException {
+        Map<String, Object> product = new HashMap<>();
+        product.put("id", rs.getInt("ID"));
+        product.put("sku", rs.getString("SKU"));
+        product.put("nombre", rs.getString("NOMBRE"));
+        product.put("descripcion", rs.getString("DESCRIPCION"));
+        product.put("stock", rs.getInt("STOCK"));
+        product.put("stock_minimo", rs.getInt("STOCK_MINIMO"));
+        product.put("stock_maximo", rs.getInt("STOCK_MAXIMO"));
+        product.put("precio", rs.getDouble("PRECIO"));
+        product.put("categoria_id", rs.getInt("CATEGORIA_ID"));
+        product.put("bodega_id", rs.getInt("BODEGA_ID"));
+        product.put("estado", rs.getString("ESTADO"));
+        product.put("unidad_medida", rs.getString("UNIDAD_MEDIDA"));
+        product.put("peso", rs.getDouble("PESO"));
+        product.put("dimensiones", rs.getString("DIMENSIONES"));
+        product.put("creado_en", rs.getTimestamp("CREADO_EN"));
+        product.put("modificado_en", rs.getTimestamp("MODIFICADO_EN"));
+        return product;
     }
 }

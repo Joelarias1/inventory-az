@@ -1,7 +1,0 @@
-com\example\bff\dto\Models$IdRequest.class
-com\example\bff\dto\Models$Product.class
-com\example\bff\dto\Models$Warehouse.class
-com\example\bff\api\BffController.class
-com\example\bff\Application.class
-com\example\bff\dto\Models.class
-com\example\bff\config\FuncClientConfig.class

@@ -1,12 +1,12 @@
 server:
   port: ${SERVER_PORT:8080}
 
-# Configuración de Oracle Cloud (OCI)
+# Configuración de Oracle Database (local Docker o Cloud)
 spring:
   datasource:
-    url: jdbc:oracle:thin:@inventariobd_high
-    username: admin
-    password: Inventariobd123!
+    url: ${ORACLE_URL:jdbc:oracle:thin:@inventariobd_high}
+    username: ${ORACLE_USER:admin}
+    password: ${ORACLE_PASSWORD:Inventariobd123!}
     driver-class-name: oracle.jdbc.OracleDriver
     hikari:
       maximum-pool-size: 5
@@ -28,10 +28,10 @@ oracle:
     wallet_location: ${ORACLE_WALLET_LOCATION:./oracle-wallet}
     tns_admin: ${TNS_ADMIN:./oracle-wallet}
 
-# Configuración de funciones serverless (para cuando las crees)
+# Configuración de funciones serverless
 func:
-  productBaseUrl: ${FUNC_PRODUCT_BASE_URL:http://localhost:8081/function}
-  warehouseBaseUrl: ${FUNC_WAREHOUSE_BASE_URL:http://localhost:8082/function}
+  productBaseUrl: ${FUNC_PRODUCT_BASE_URL:http://localhost:7071/api}
+  warehouseBaseUrl: ${FUNC_WAREHOUSE_BASE_URL:http://localhost:7072/api}
 
 # Logging para debugging
 logging:

@@ -1,15 +1,71 @@
+version: '3.8'
 services:
+  # Base de datos Oracle para desarrollo local
+  oracle-db:
+    image: container-registry.oracle.com/database/express:21.3.0-xe
+    container_name: oracle-xe
+    environment:
+      - ORACLE_PWD=Inventariobd123!
+      - ORACLE_CHARACTERSET=AL32UTF8
+    ports:
+      - "1521:1521"
+      - "5500:5500"
+    volumes:
+      - oracle_data:/opt/oracle/oradata
+      - ./db:/docker-entrypoint-initdb.d/startup
+    healthcheck:
+      test: ["CMD", "sqlplus", "-S", "sys/Inventariobd123!@//localhost:1521/XE", "as", "sysdba", "@/docker-entrypoint-initdb.d/startup/oracle-schema-oci.sql"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Función serverless para Productos
+  product-function:
+    build: ./azure-functions
+    container_name: product-function
+    environment:
+      - ORACLE_URL=jdbc:oracle:thin:@oracle-xe:1521:XE
+      - ORACLE_USER=system
+      - ORACLE_PASSWORD=Inventariobd123!
+      - FUNCTION_NAME=ProductFunction
+    ports:
+      - "7071:80"
+    depends_on:
+      oracle-db:
+        condition: service_healthy
+
+  # Función serverless para Bodegas
+  warehouse-function:
+    build: ./azure-functions
+    container_name: warehouse-function
+    environment:
+      - ORACLE_URL=jdbc:oracle:thin:@oracle-xe:1521:XE
+      - ORACLE_USER=system
+      - ORACLE_PASSWORD=Inventariobd123!
+      - FUNCTION_NAME=WarehouseFunction
+    ports:
+      - "7072:80"
+    depends_on:
+      oracle-db:
+        condition: service_healthy
+
+  # BFF (Backend for Frontend)
   bff:
     build: ./bff
     container_name: bff
     environment:
       - SERVER_PORT=8080
-      - ORACLE_WALLET_LOCATION=/app/oracle-wallet
-      - TNS_ADMIN=/app/oracle-wallet
-      - ORACLE_NET_TNS_ADMIN=/app/oracle-wallet
-      - ORACLE_NET_WALLET_LOCATION=(SOURCE=(METHOD=FILE)(METHOD_DATA=(DIRECTORY=/app/oracle-wallet)))
+      - FUNC_PRODUCT_BASE_URL=http://product-function:80
+      - FUNC_WAREHOUSE_BASE_URL=http://warehouse-function:80
+      - ORACLE_URL=jdbc:oracle:thin:@oracle-xe:1521:XE
+      - ORACLE_USER=system
+      - ORACLE_PASSWORD=Inventariobd123!
     ports:
       - "8080:8080"
-    volumes:
-      # Montar la wallet de Oracle Cloud
-      - ./db/oracle-wallet:/app/oracle-wallet:ro
+    depends_on:
+      - product-function
+      - warehouse-function
+      - oracle-db
+
+volumes:
+  oracle_data:
