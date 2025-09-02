@@ -24,11 +24,11 @@
             <version>${azure.functions.java.library.version}</version>
         </dependency>
         
-        <!-- Oracle JDBC Driver para conexión a Oracle Cloud -->
+        <!-- PostgreSQL JDBC Driver para conexión a Azure PostgreSQL -->
         <dependency>
-            <groupId>com.oracle.database.jdbc</groupId>
-            <artifactId>ojdbc11</artifactId>
-            <version>23.3.0.23.09</version>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.6.0</version>
         </dependency>
         
         <!-- JSON processing -->

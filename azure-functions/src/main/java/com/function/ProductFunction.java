@@ -1,7 +1,6 @@
 package com.function;
 
 import java.util.*;
-import java.util.stream.Collectors;
 import java.sql.*;
 import java.util.Date;
 import com.microsoft.azure.functions.annotation.*;
@@ -9,6 +8,8 @@ import com.microsoft.azure.functions.*;
 
 /**
  * Azure Functions para CRUD de Productos
+ * Conecta directamente a base de datos para operaciones reales
+ * 
  * Endpoints:
  * GET /api/ProductFunction - Listar todos los productos
  * GET /api/ProductFunction?id={id} - Obtener producto por ID
@@ -19,46 +20,12 @@ import com.microsoft.azure.functions.*;
 public class ProductFunction {
     
     // Configuración de base de datos
-    private static final String DB_URL = System.getenv("ORACLE_URL") != null ? 
-        System.getenv("ORACLE_URL") : "jdbc:oracle:thin:@localhost:1521:XE";
-    private static final String DB_USER = System.getenv("ORACLE_USER") != null ? 
-        System.getenv("ORACLE_USER") : "system";
-    private static final String DB_PASSWORD = System.getenv("ORACLE_PASSWORD") != null ? 
-        System.getenv("ORACLE_PASSWORD") : "Inventariobd123!";
-    
-    // Mock data como fallback
-    private static final List<Map<String, Object>> MOCK_PRODUCTS = new ArrayList<>();
-    private static int nextId = 1;
-    
-    static {
-        // Datos iniciales
-        addMockProduct("LAP-001", "Laptop HP Pavilion", "Laptop 15 pulgadas, 8GB RAM, 256GB SSD", 10, 2, 599990, 1, 1);
-        addMockProduct("CEL-001", "Smartphone Samsung Galaxy", "Smartphone 6.1 pulgadas, 128GB", 25, 5, 299990, 1, 1);
-        addMockProduct("CAM-001", "Camiseta Deportiva", "Camiseta 100% algodón, talla M", 50, 10, 15990, 2, 1);
-        addMockProduct("MES-001", "Mesa de Centro", "Mesa de centro de madera, 80x40cm", 5, 1, 89990, 3, 1);
-    }
-    
-    private static void addMockProduct(String sku, String nombre, String descripcion, int stock, int stockMinimo, 
-                                     double precio, int categoriaId, int bodegaId) {
-        Map<String, Object> product = new HashMap<>();
-        product.put("id", nextId++);
-        product.put("sku", sku);
-        product.put("nombre", nombre);
-        product.put("descripcion", descripcion);
-        product.put("stock", stock);
-        product.put("stock_minimo", stockMinimo);
-        product.put("stock_maximo", 1000);
-        product.put("precio", precio);
-        product.put("categoria_id", categoriaId);
-        product.put("bodega_id", bodegaId);
-        product.put("estado", "ACTIVO");
-        product.put("unidad_medida", "UNIDAD");
-        product.put("peso", 1.5);
-        product.put("dimensiones", "30x20x10 cm");
-        product.put("creado_en", new Date());
-        product.put("modificado_en", new Date());
-        MOCK_PRODUCTS.add(product);
-    }
+    private static final String DB_URL = System.getenv("POSTGRES_URL") != null ? 
+        System.getenv("POSTGRES_URL") : "jdbc:postgresql://104.208.158.85:5432/duoc?sslmode=require";
+    private static final String DB_USER = System.getenv("POSTGRES_USER") != null ? 
+        System.getenv("POSTGRES_USER") : "duoc";
+    private static final String DB_PASSWORD = System.getenv("POSTGRES_PASSWORD") != null ? 
+        System.getenv("POSTGRES_PASSWORD") : "duoc1234";
 
     @FunctionName("ProductFunction")
     public HttpResponseMessage run(
@@ -91,75 +58,35 @@ public class ProductFunction {
         String idParam = request.getQueryParameters().get("id");
         String categoriaParam = request.getQueryParameters().get("categoria");
         String bodegaParam = request.getQueryParameters().get("bodega");
+        String testParam = request.getQueryParameters().get("test");
         
-        // Intentar usar Oracle primero, luego fallback a mock data
-        try (Connection conn = getConnection()) {
-            if (conn != null) {
-                return handleGetFromOracle(conn, idParam, categoriaParam, bodegaParam, request, context);
-            }
-        } catch (Exception e) {
-            context.getLogger().warning("Error conectando a Oracle, usando datos mock: " + e.getMessage());
+        // Endpoint de prueba sin BD
+        if (testParam != null) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "ProductFunction funcionando correctamente");
+            response.put("timestamp", new Date());
+            response.put("test", true);
+            return createSuccessResponse(request, response);
         }
         
-        if (idParam != null) {
-            // GET por ID
-            try {
-                int id = Integer.parseInt(idParam);
-                Optional<Map<String, Object>> product = MOCK_PRODUCTS.stream()
-                    .filter(p -> p.get("id").equals(id))
-                    .findFirst();
-                
-                if (product.isPresent()) {
-                    return createSuccessResponse(request, product.get());
-                } else {
-                    return createErrorResponse(request, "Producto no encontrado", 404);
-                }
-            } catch (NumberFormatException e) {
-                return createErrorResponse(request, "ID inválido", 400);
+        try (Connection conn = getConnection()) {
+            if (idParam != null) {
+                // GET por ID
+                return getProductById(conn, idParam, request, context);
+            } else if (categoriaParam != null) {
+                // GET por categoría
+                return getProductsByCategory(conn, categoriaParam, request, context);
+            } else if (bodegaParam != null) {
+                // GET por bodega
+                return getProductsByWarehouse(conn, bodegaParam, request, context);
+            } else {
+                // GET todos los productos
+                return getAllProducts(conn, request, context);
             }
-        } else if (categoriaParam != null) {
-            // GET por categoría
-            try {
-                int categoriaId = Integer.parseInt(categoriaParam);
-                List<Map<String, Object>> filteredProducts = MOCK_PRODUCTS.stream()
-                    .filter(p -> p.get("categoria_id").equals(categoriaId))
-                    .collect(Collectors.toList());
-                
-                Map<String, Object> response = new HashMap<>();
-                response.put("productos", filteredProducts);
-                response.put("total", filteredProducts.size());
-                response.put("categoria_id", categoriaId);
-                
-                return createSuccessResponse(request, response);
-            } catch (NumberFormatException e) {
-                return createErrorResponse(request, "ID de categoría inválido", 400);
-            }
-        } else if (bodegaParam != null) {
-            // GET por bodega
-            try {
-                int bodegaId = Integer.parseInt(bodegaParam);
-                List<Map<String, Object>> filteredProducts = MOCK_PRODUCTS.stream()
-                    .filter(p -> p.get("bodega_id").equals(bodegaId))
-                    .collect(Collectors.toList());
-                
-                Map<String, Object> response = new HashMap<>();
-                response.put("productos", filteredProducts);
-                response.put("total", filteredProducts.size());
-                response.put("bodega_id", bodegaId);
-                
-                return createSuccessResponse(request, response);
-            } catch (NumberFormatException e) {
-                return createErrorResponse(request, "ID de bodega inválido", 400);
-            }
-        } else {
-            // GET todos los productos (mock data)
-            Map<String, Object> response = new HashMap<>();
-            response.put("productos", MOCK_PRODUCTS);
-            response.put("total", MOCK_PRODUCTS.size());
-            response.put("timestamp", new Date());
-            response.put("source", "mock-data");
-            
-            return createSuccessResponse(request, response);
+        } catch (Exception e) {
+            context.getLogger().severe("Error en GET: " + e.getMessage());
+            return createErrorResponse(request, "Error al obtener productos: " + e.getMessage(), 500);
         }
     }
     
@@ -167,32 +94,45 @@ public class ProductFunction {
         String body = request.getBody().orElse("{}");
         context.getLogger().info("Creando producto con datos: " + body);
         
-        // Simular creación (en un caso real, parsearías el JSON)
-        Map<String, Object> newProduct = new HashMap<>();
-        newProduct.put("id", nextId++);
-        newProduct.put("sku", "PROD-" + String.format("%03d", nextId - 1));
-        newProduct.put("nombre", "Nuevo Producto " + (nextId - 1));
-        newProduct.put("descripcion", "Producto creado automáticamente");
-        newProduct.put("stock", 0);
-        newProduct.put("stock_minimo", 5);
-        newProduct.put("stock_maximo", 100);
-        newProduct.put("precio", 9990.0);
-        newProduct.put("categoria_id", 1);
-        newProduct.put("bodega_id", 1);
-        newProduct.put("estado", "ACTIVO");
-        newProduct.put("unidad_medida", "UNIDAD");
-        newProduct.put("peso", 1.0);
-        newProduct.put("dimensiones", "10x10x10 cm");
-        newProduct.put("creado_en", new Date());
-        newProduct.put("modificado_en", new Date());
-        
-        MOCK_PRODUCTS.add(newProduct);
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("message", "Producto creado exitosamente");
-        response.put("producto", newProduct);
-        
-        return createSuccessResponse(request, response);
+        // Por ahora simula la creación (en producción parsearías el JSON)
+        try (Connection conn = getConnection()) {
+            String sql = "INSERT INTO productos (sku, nombre, descripcion, stock, stock_minimo, stock_maximo, precio, categoria_id, bodega_id, estado, unidad_medida, peso, dimensiones) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id";
+            
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, "PROD-NEW");
+                stmt.setString(2, "Nuevo Producto Azure Function");
+                stmt.setString(3, "Producto creado desde Azure Function");
+                stmt.setInt(4, 10);
+                stmt.setInt(5, 5);
+                stmt.setInt(6, 100);
+                stmt.setDouble(7, 9990.0);
+                stmt.setInt(8, 1); // categoria_id
+                stmt.setInt(9, 1); // bodega_id
+                stmt.setString(10, "ACTIVO");
+                stmt.setString(11, "UNIDAD");
+                stmt.setDouble(12, 1.0);
+                stmt.setString(13, "10x10x10 cm");
+                
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        int newId = rs.getInt("id");
+                        
+                        Map<String, Object> response = new HashMap<>();
+                        response.put("success", true);
+                        response.put("data", Map.of("id", newId, "message", "Producto creado exitosamente"));
+                        response.put("message", "Producto creado exitosamente");
+                        response.put("timestamp", new Date());
+                        
+                        return createSuccessResponse(request, response);
+                    }
+                }
+                
+                return createErrorResponse(request, "Error al crear producto", 500);
+            }
+        } catch (Exception e) {
+            context.getLogger().severe("Error en POST: " + e.getMessage());
+            return createErrorResponse(request, "Error al crear producto: " + e.getMessage(), 500);
+        }
     }
     
     private HttpResponseMessage handlePut(HttpRequestMessage<Optional<String>> request, ExecutionContext context) {
@@ -201,27 +141,31 @@ public class ProductFunction {
             return createErrorResponse(request, "ID requerido para actualizar", 400);
         }
         
-        try {
+        try (Connection conn = getConnection()) {
             int id = Integer.parseInt(idParam);
-            Optional<Map<String, Object>> productOpt = MOCK_PRODUCTS.stream()
-                .filter(p -> p.get("id").equals(id))
-                .findFirst();
+            String sql = "UPDATE productos SET nombre = ?, modificado_en = CURRENT_TIMESTAMP WHERE id = ?";
             
-            if (productOpt.isPresent()) {
-                Map<String, Object> product = productOpt.get();
-                product.put("modificado_en", new Date());
-                product.put("nombre", product.get("nombre") + " (Actualizado)");
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, "Producto Actualizado por Azure Function");
+                stmt.setInt(2, id);
                 
-                Map<String, Object> response = new HashMap<>();
-                response.put("message", "Producto actualizado exitosamente");
-                response.put("producto", product);
+                int affectedRows = stmt.executeUpdate();
                 
-                return createSuccessResponse(request, response);
-            } else {
-                return createErrorResponse(request, "Producto no encontrado", 404);
+                if (affectedRows > 0) {
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("success", true);
+                    response.put("data", Map.of("id", id, "message", "Producto actualizado exitosamente"));
+                    response.put("message", "Producto actualizado exitosamente");
+                    response.put("timestamp", new Date());
+                    
+                    return createSuccessResponse(request, response);
+                } else {
+                    return createErrorResponse(request, "Producto no encontrado", 404);
+                }
             }
-        } catch (NumberFormatException e) {
-            return createErrorResponse(request, "ID inválido", 400);
+        } catch (Exception e) {
+            context.getLogger().severe("Error en PUT: " + e.getMessage());
+            return createErrorResponse(request, "Error al actualizar producto: " + e.getMessage(), 500);
         }
     }
     
@@ -231,21 +175,30 @@ public class ProductFunction {
             return createErrorResponse(request, "ID requerido para eliminar", 400);
         }
         
-        try {
+        try (Connection conn = getConnection()) {
             int id = Integer.parseInt(idParam);
-            boolean removed = MOCK_PRODUCTS.removeIf(p -> p.get("id").equals(id));
+            String sql = "DELETE FROM productos WHERE id = ?";
             
-            if (removed) {
-                Map<String, Object> response = new HashMap<>();
-                response.put("message", "Producto eliminado exitosamente");
-                response.put("id", id);
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setInt(1, id);
                 
-                return createSuccessResponse(request, response);
-            } else {
-                return createErrorResponse(request, "Producto no encontrado", 404);
+                int affectedRows = stmt.executeUpdate();
+                
+                if (affectedRows > 0) {
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("success", true);
+                    response.put("data", Map.of("id", id, "message", "Producto eliminado exitosamente"));
+                    response.put("message", "Producto eliminado exitosamente");
+                    response.put("timestamp", new Date());
+                    
+                    return createSuccessResponse(request, response);
+                } else {
+                    return createErrorResponse(request, "Producto no encontrado", 404);
+                }
             }
-        } catch (NumberFormatException e) {
-            return createErrorResponse(request, "ID inválido", 400);
+        } catch (Exception e) {
+            context.getLogger().severe("Error en DELETE: " + e.getMessage());
+            return createErrorResponse(request, "Error al eliminar producto: " + e.getMessage(), 500);
         }
     }
     
@@ -258,6 +211,7 @@ public class ProductFunction {
     
     private HttpResponseMessage createErrorResponse(HttpRequestMessage<Optional<String>> request, String message, int statusCode) {
         Map<String, Object> error = new HashMap<>();
+        error.put("success", false);
         error.put("error", message);
         error.put("timestamp", new Date());
         error.put("status", statusCode);
@@ -270,32 +224,21 @@ public class ProductFunction {
     
     private Connection getConnection() throws SQLException {
         try {
+            // Establecer timeout de conexión
+            DriverManager.setLoginTimeout(15);
+            
+            // Log para debugging
+            System.out.println("Intentando conectar a: " + DB_URL);
+            
             return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
         } catch (SQLException e) {
-            return null; // Fallback a mock data
+            System.err.println("Error conectando a PostgreSQL: " + e.getMessage());
+            throw new SQLException("Error conectando a PostgreSQL: " + e.getMessage(), e);
         }
     }
     
-    private HttpResponseMessage handleGetFromOracle(Connection conn, String idParam, String categoriaParam, 
-                                                  String bodegaParam, HttpRequestMessage<Optional<String>> request, 
-                                                  ExecutionContext context) throws SQLException {
-        if (idParam != null) {
-            // GET por ID desde Oracle
-            return getProductByIdFromOracle(conn, idParam, request, context);
-        } else if (categoriaParam != null) {
-            // GET por categoría desde Oracle
-            return getProductsByCategoryFromOracle(conn, categoriaParam, request, context);
-        } else if (bodegaParam != null) {
-            // GET por bodega desde Oracle  
-            return getProductsByWarehouseFromOracle(conn, bodegaParam, request, context);
-        } else {
-            // GET todos los productos desde Oracle
-            return getAllProductsFromOracle(conn, request, context);
-        }
-    }
-    
-    private HttpResponseMessage getAllProductsFromOracle(Connection conn, HttpRequestMessage<Optional<String>> request, ExecutionContext context) throws SQLException {
-        String sql = "SELECT ID, SKU, NOMBRE, DESCRIPCION, STOCK, STOCK_MINIMO, STOCK_MAXIMO, PRECIO, CATEGORIA_ID, BODEGA_ID, ESTADO, UNIDAD_MEDIDA, PESO, DIMENSIONES, CREADO_EN, MODIFICADO_EN FROM PRODUCTOS ORDER BY ID";
+    private HttpResponseMessage getAllProducts(Connection conn, HttpRequestMessage<Optional<String>> request, ExecutionContext context) throws SQLException {
+        String sql = "SELECT id, sku, nombre, descripcion, stock, stock_minimo, stock_maximo, precio, categoria_id, bodega_id, estado, unidad_medida, peso, dimensiones, creado_en, modificado_en FROM productos ORDER BY id";
         
         List<Map<String, Object>> products = new ArrayList<>();
         
@@ -312,16 +255,16 @@ public class ProductFunction {
         response.put("success", true);
         response.put("data", products);
         response.put("total", products.size());
-        response.put("source", "oracle-database");
+        response.put("message", "Productos obtenidos exitosamente");
         response.put("timestamp", new Date());
         
         return createSuccessResponse(request, response);
     }
     
-    private HttpResponseMessage getProductByIdFromOracle(Connection conn, String idParam, HttpRequestMessage<Optional<String>> request, ExecutionContext context) throws SQLException {
+    private HttpResponseMessage getProductById(Connection conn, String idParam, HttpRequestMessage<Optional<String>> request, ExecutionContext context) throws SQLException {
         try {
             int id = Integer.parseInt(idParam);
-            String sql = "SELECT ID, SKU, NOMBRE, DESCRIPCION, STOCK, STOCK_MINIMO, STOCK_MAXIMO, PRECIO, CATEGORIA_ID, BODEGA_ID, ESTADO, UNIDAD_MEDIDA, PESO, DIMENSIONES, CREADO_EN, MODIFICADO_EN FROM PRODUCTOS WHERE ID = ?";
+            String sql = "SELECT id, sku, nombre, descripcion, stock, stock_minimo, stock_maximo, precio, categoria_id, bodega_id, estado, unidad_medida, peso, dimensiones, creado_en, modificado_en FROM productos WHERE id = ?";
             
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, id);
@@ -333,7 +276,7 @@ public class ProductFunction {
                         Map<String, Object> response = new HashMap<>();
                         response.put("success", true);
                         response.put("data", product);
-                        response.put("source", "oracle-database");
+                        response.put("message", "Producto encontrado exitosamente");
                         response.put("timestamp", new Date());
                         
                         return createSuccessResponse(request, response);
@@ -347,10 +290,10 @@ public class ProductFunction {
         }
     }
     
-    private HttpResponseMessage getProductsByCategoryFromOracle(Connection conn, String categoriaParam, HttpRequestMessage<Optional<String>> request, ExecutionContext context) throws SQLException {
+    private HttpResponseMessage getProductsByCategory(Connection conn, String categoriaParam, HttpRequestMessage<Optional<String>> request, ExecutionContext context) throws SQLException {
         try {
             int categoriaId = Integer.parseInt(categoriaParam);
-            String sql = "SELECT ID, SKU, NOMBRE, DESCRIPCION, STOCK, STOCK_MINIMO, STOCK_MAXIMO, PRECIO, CATEGORIA_ID, BODEGA_ID, ESTADO, UNIDAD_MEDIDA, PESO, DIMENSIONES, CREADO_EN, MODIFICADO_EN FROM PRODUCTOS WHERE CATEGORIA_ID = ? ORDER BY ID";
+            String sql = "SELECT id, sku, nombre, descripcion, stock, stock_minimo, stock_maximo, precio, categoria_id, bodega_id, estado, unidad_medida, peso, dimensiones, creado_en, modificado_en FROM productos WHERE categoria_id = ? ORDER BY id";
             
             List<Map<String, Object>> products = new ArrayList<>();
             
@@ -370,7 +313,7 @@ public class ProductFunction {
             response.put("data", products);
             response.put("total", products.size());
             response.put("categoria_id", categoriaId);
-            response.put("source", "oracle-database");
+            response.put("message", "Productos obtenidos por categoria exitosamente");
             response.put("timestamp", new Date());
             
             return createSuccessResponse(request, response);
@@ -379,10 +322,10 @@ public class ProductFunction {
         }
     }
     
-    private HttpResponseMessage getProductsByWarehouseFromOracle(Connection conn, String bodegaParam, HttpRequestMessage<Optional<String>> request, ExecutionContext context) throws SQLException {
+    private HttpResponseMessage getProductsByWarehouse(Connection conn, String bodegaParam, HttpRequestMessage<Optional<String>> request, ExecutionContext context) throws SQLException {
         try {
             int bodegaId = Integer.parseInt(bodegaParam);
-            String sql = "SELECT ID, SKU, NOMBRE, DESCRIPCION, STOCK, STOCK_MINIMO, STOCK_MAXIMO, PRECIO, CATEGORIA_ID, BODEGA_ID, ESTADO, UNIDAD_MEDIDA, PESO, DIMENSIONES, CREADO_EN, MODIFICADO_EN FROM PRODUCTOS WHERE BODEGA_ID = ? ORDER BY ID";
+            String sql = "SELECT id, sku, nombre, descripcion, stock, stock_minimo, stock_maximo, precio, categoria_id, bodega_id, estado, unidad_medida, peso, dimensiones, creado_en, modificado_en FROM productos WHERE bodega_id = ? ORDER BY id";
             
             List<Map<String, Object>> products = new ArrayList<>();
             
@@ -402,7 +345,7 @@ public class ProductFunction {
             response.put("data", products);
             response.put("total", products.size());
             response.put("bodega_id", bodegaId);
-            response.put("source", "oracle-database");
+            response.put("message", "Productos obtenidos por bodega exitosamente");
             response.put("timestamp", new Date());
             
             return createSuccessResponse(request, response);
@@ -413,22 +356,22 @@ public class ProductFunction {
     
     private Map<String, Object> mapResultSetToProduct(ResultSet rs) throws SQLException {
         Map<String, Object> product = new HashMap<>();
-        product.put("id", rs.getInt("ID"));
-        product.put("sku", rs.getString("SKU"));
-        product.put("nombre", rs.getString("NOMBRE"));
-        product.put("descripcion", rs.getString("DESCRIPCION"));
-        product.put("stock", rs.getInt("STOCK"));
-        product.put("stock_minimo", rs.getInt("STOCK_MINIMO"));
-        product.put("stock_maximo", rs.getInt("STOCK_MAXIMO"));
-        product.put("precio", rs.getDouble("PRECIO"));
-        product.put("categoria_id", rs.getInt("CATEGORIA_ID"));
-        product.put("bodega_id", rs.getInt("BODEGA_ID"));
-        product.put("estado", rs.getString("ESTADO"));
-        product.put("unidad_medida", rs.getString("UNIDAD_MEDIDA"));
-        product.put("peso", rs.getDouble("PESO"));
-        product.put("dimensiones", rs.getString("DIMENSIONES"));
-        product.put("creado_en", rs.getTimestamp("CREADO_EN"));
-        product.put("modificado_en", rs.getTimestamp("MODIFICADO_EN"));
+        product.put("id", rs.getInt("id"));
+        product.put("sku", rs.getString("sku"));
+        product.put("nombre", rs.getString("nombre"));
+        product.put("descripcion", rs.getString("descripcion"));
+        product.put("stock", rs.getInt("stock"));
+        product.put("stock_minimo", rs.getInt("stock_minimo"));
+        product.put("stock_maximo", rs.getInt("stock_maximo"));
+        product.put("precio", rs.getDouble("precio"));
+        product.put("categoria_id", rs.getInt("categoria_id"));
+        product.put("bodega_id", rs.getInt("bodega_id"));
+        product.put("estado", rs.getString("estado"));
+        product.put("unidad_medida", rs.getString("unidad_medida"));
+        product.put("peso", rs.getDouble("peso"));
+        product.put("dimensiones", rs.getString("dimensiones"));
+        product.put("creado_en", rs.getTimestamp("creado_en"));
+        product.put("modificado_en", rs.getTimestamp("modificado_en"));
         return product;
     }
 }

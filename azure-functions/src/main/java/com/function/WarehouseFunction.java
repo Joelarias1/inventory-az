@@ -8,21 +8,24 @@ import com.microsoft.azure.functions.*;
 
 /**
  * Azure Functions para CRUD de Bodegas (Warehouses)           
- * Conecta directamente a Oracle Cloud para operaciones reales
+ * Conecta directamente a base de datos para operaciones reales
  * 
  * Endpoints:
- * GET /api/WarehouseFunction - Listar todas las bodegas (desde Oracle)
- * GET /api/WarehouseFunction?id={id} - Obtener bodega por ID (desde Oracle)
- * POST /api/WarehouseFunction - Crear nueva bodega (en Oracle)
- * PUT /api/WarehouseFunction?id={id} - Actualizar bodega (en Oracle)
- * DELETE /api/WarehouseFunction?id={id} - Eliminar bodega (en Oracle)
+ * GET /api/WarehouseFunction - Listar todas las bodegas
+ * GET /api/WarehouseFunction?id={id} - Obtener bodega por ID
+ * POST /api/WarehouseFunction - Crear nueva bodega
+ * PUT /api/WarehouseFunction?id={id} - Actualizar bodega
+ * DELETE /api/WarehouseFunction?id={id} - Eliminar bodega
  */
 public class WarehouseFunction {
     
-    // Configuración de Oracle Cloud
-    private static final String DB_URL = "jdbc:oracle:thin:@inventariobd_high";
-    private static final String DB_USER = "admin";
-    private static final String DB_PASSWORD = "Inventariobd123!";
+    // Configuración de base de datos
+    private static final String DB_URL = System.getenv("POSTGRES_URL") != null ? 
+        System.getenv("POSTGRES_URL") : "jdbc:postgresql://104.208.158.85:5432/duoc?sslmode=require";
+    private static final String DB_USER = System.getenv("POSTGRES_USER") != null ? 
+        System.getenv("POSTGRES_USER") : "duoc";
+    private static final String DB_PASSWORD = System.getenv("POSTGRES_PASSWORD") != null ? 
+        System.getenv("POSTGRES_PASSWORD") : "duoc1234";
 
     @FunctionName("WarehouseFunction")
     public HttpResponseMessage run(
@@ -69,7 +72,7 @@ public class WarehouseFunction {
     }
     
     private HttpResponseMessage getAllWarehouses(Connection conn, HttpRequestMessage<Optional<String>> request, ExecutionContext context) throws SQLException {
-        String sql = "SELECT ID, NOMBRE, DIRECCION, TELEFONO, EMAIL, RESPONSABLE, ESTADO, CAPACIDAD_MAX, CREADO_EN, MODIFICADO_EN FROM BODEGAS ORDER BY ID";
+        String sql = "SELECT id, nombre, direccion, telefono, email, responsable, estado, capacidad_max, creado_en, modificado_en FROM bodegas ORDER BY id";
         
         List<Map<String, Object>> warehouses = new ArrayList<>();
         
@@ -78,16 +81,16 @@ public class WarehouseFunction {
             
             while (rs.next()) {
                 Map<String, Object> warehouse = new HashMap<>();
-                warehouse.put("id", rs.getInt("ID"));
-                warehouse.put("nombre", rs.getString("NOMBRE"));
-                warehouse.put("direccion", rs.getString("DIRECCION"));
-                warehouse.put("telefono", rs.getString("TELEFONO"));
-                warehouse.put("email", rs.getString("EMAIL"));
-                warehouse.put("responsable", rs.getString("RESPONSABLE"));
-                warehouse.put("estado", rs.getString("ESTADO"));
-                warehouse.put("capacidad_max", rs.getInt("CAPACIDAD_MAX"));
-                warehouse.put("creado_en", rs.getTimestamp("CREADO_EN"));
-                warehouse.put("modificado_en", rs.getTimestamp("MODIFICADO_EN"));
+                warehouse.put("id", rs.getInt("id"));
+                warehouse.put("nombre", rs.getString("nombre"));
+                warehouse.put("direccion", rs.getString("direccion"));
+                warehouse.put("telefono", rs.getString("telefono"));
+                warehouse.put("email", rs.getString("email"));
+                warehouse.put("responsable", rs.getString("responsable"));
+                warehouse.put("estado", rs.getString("estado"));
+                warehouse.put("capacidad_max", rs.getInt("capacidad_max"));
+                warehouse.put("creado_en", rs.getTimestamp("creado_en"));
+                warehouse.put("modificado_en", rs.getTimestamp("modificado_en"));
                 warehouses.add(warehouse);
             }
         }
@@ -96,7 +99,7 @@ public class WarehouseFunction {
         response.put("success", true);
         response.put("data", warehouses);
         response.put("total", warehouses.size());
-        response.put("message", "Bodegas obtenidas desde Oracle Cloud");
+        response.put("message", "Bodegas obtenidas exitosamente");
         response.put("timestamp", new Date());
         
         return createSuccessResponse(request, response);
@@ -105,7 +108,7 @@ public class WarehouseFunction {
     private HttpResponseMessage getWarehouseById(Connection conn, String idParam, HttpRequestMessage<Optional<String>> request, ExecutionContext context) throws SQLException {
         try {
             int id = Integer.parseInt(idParam);
-            String sql = "SELECT ID, NOMBRE, DIRECCION, TELEFONO, EMAIL, RESPONSABLE, ESTADO, CAPACIDAD_MAX, CREADO_EN, MODIFICADO_EN FROM BODEGAS WHERE ID = ?";
+            String sql = "SELECT id, nombre, direccion, telefono, email, responsable, estado, capacidad_max, creado_en, modificado_en FROM bodegas WHERE id = ?";
             
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, id);
@@ -113,21 +116,21 @@ public class WarehouseFunction {
                 try (ResultSet rs = stmt.executeQuery()) {
                     if (rs.next()) {
                         Map<String, Object> warehouse = new HashMap<>();
-                        warehouse.put("id", rs.getInt("ID"));
-                        warehouse.put("nombre", rs.getString("NOMBRE"));
-                        warehouse.put("direccion", rs.getString("DIRECCION"));
-                        warehouse.put("telefono", rs.getString("TELEFONO"));
-                        warehouse.put("email", rs.getString("EMAIL"));
-                        warehouse.put("responsable", rs.getString("RESPONSABLE"));
-                        warehouse.put("estado", rs.getString("ESTADO"));
-                        warehouse.put("capacidad_max", rs.getInt("CAPACIDAD_MAX"));
-                        warehouse.put("creado_en", rs.getTimestamp("CREADO_EN"));
-                        warehouse.put("modificado_en", rs.getTimestamp("MODIFICADO_EN"));
+                        warehouse.put("id", rs.getInt("id"));
+                        warehouse.put("nombre", rs.getString("nombre"));
+                        warehouse.put("direccion", rs.getString("direccion"));
+                        warehouse.put("telefono", rs.getString("telefono"));
+                        warehouse.put("email", rs.getString("email"));
+                        warehouse.put("responsable", rs.getString("responsable"));
+                        warehouse.put("estado", rs.getString("estado"));
+                        warehouse.put("capacidad_max", rs.getInt("capacidad_max"));
+                        warehouse.put("creado_en", rs.getTimestamp("creado_en"));
+                        warehouse.put("modificado_en", rs.getTimestamp("modificado_en"));
                         
                         Map<String, Object> response = new HashMap<>();
                         response.put("success", true);
                         response.put("data", warehouse);
-                        response.put("message", "Bodega encontrada en Oracle Cloud");
+                        response.put("message", "Bodega encontrada exitosamente");
                         response.put("timestamp", new Date());
                         
                         return createSuccessResponse(request, response);
@@ -147,9 +150,9 @@ public class WarehouseFunction {
         
         // Por ahora simula la creación (en producción parsearías el JSON)
         try (Connection conn = getConnection()) {
-            String sql = "INSERT INTO BODEGAS (NOMBRE, DIRECCION, TELEFONO, EMAIL, RESPONSABLE, ESTADO, CAPACIDAD_MAX) VALUES (?, ?, ?, ?, ?, ?, ?)";
+            String sql = "INSERT INTO bodegas (nombre, direccion, telefono, email, responsable, estado, capacidad_max) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id";
             
-            try (PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setString(1, "Nueva Bodega Azure Function");
                 stmt.setString(2, "Dirección por defecto");
                 stmt.setString(3, "123456789");
@@ -158,22 +161,17 @@ public class WarehouseFunction {
                 stmt.setString(6, "ACTIVO");
                 stmt.setInt(7, 1000);
                 
-                int affectedRows = stmt.executeUpdate();
-                
-                if (affectedRows > 0) {
-                    // Obtener el ID generado
-                    try (ResultSet rs = stmt.getGeneratedKeys()) {
-                        if (rs.next()) {
-                            int newId = rs.getInt(1);
-                            
-                            Map<String, Object> response = new HashMap<>();
-                            response.put("success", true);
-                            response.put("data", Map.of("id", newId, "message", "Bodega creada en Oracle Cloud"));
-                            response.put("message", "Bodega creada exitosamente en Oracle Cloud");
-                            response.put("timestamp", new Date());
-                            
-                            return createSuccessResponse(request, response);
-                        }
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        int newId = rs.getInt("id");
+                        
+                        Map<String, Object> response = new HashMap<>();
+                        response.put("success", true);
+                        response.put("data", Map.of("id", newId, "message", "Bodega creada exitosamente"));
+                        response.put("message", "Bodega creada exitosamente");
+                        response.put("timestamp", new Date());
+                        
+                        return createSuccessResponse(request, response);
                     }
                 }
                 
@@ -193,7 +191,7 @@ public class WarehouseFunction {
         
         try (Connection conn = getConnection()) {
             int id = Integer.parseInt(idParam);
-            String sql = "UPDATE BODEGAS SET NOMBRE = ?, MODIFICADO_EN = SYSTIMESTAMP WHERE ID = ?";
+            String sql = "UPDATE bodegas SET nombre = ?, modificado_en = CURRENT_TIMESTAMP WHERE id = ?";
             
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setString(1, "Bodega Actualizada por Azure Function");
@@ -204,8 +202,8 @@ public class WarehouseFunction {
                 if (affectedRows > 0) {
                     Map<String, Object> response = new HashMap<>();
                     response.put("success", true);
-                    response.put("data", Map.of("id", id, "message", "Bodega actualizada en Oracle Cloud"));
-                    response.put("message", "Bodega actualizada exitosamente en Oracle Cloud");
+                    response.put("data", Map.of("id", id, "message", "Bodega actualizada exitosamente"));
+                    response.put("message", "Bodega actualizada exitosamente");
                     response.put("timestamp", new Date());
                     
                     return createSuccessResponse(request, response);
@@ -227,7 +225,7 @@ public class WarehouseFunction {
         
         try (Connection conn = getConnection()) {
             int id = Integer.parseInt(idParam);
-            String sql = "DELETE FROM BODEGAS WHERE ID = ?";
+            String sql = "DELETE FROM bodegas WHERE id = ?";
             
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, id);
@@ -237,8 +235,8 @@ public class WarehouseFunction {
                 if (affectedRows > 0) {
                     Map<String, Object> response = new HashMap<>();
                     response.put("success", true);
-                    response.put("data", Map.of("id", id, "message", "Bodega eliminada de Oracle Cloud"));
-                    response.put("message", "Bodega eliminada exitosamente de Oracle Cloud");
+                    response.put("data", Map.of("id", id, "message", "Bodega eliminada exitosamente"));
+                    response.put("message", "Bodega eliminada exitosamente");
                     response.put("timestamp", new Date());
                     
                     return createSuccessResponse(request, response);
@@ -253,7 +251,18 @@ public class WarehouseFunction {
     }
     
     private Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+        try {
+            // Establecer timeout de conexión
+            DriverManager.setLoginTimeout(15);
+            
+            // Log para debugging
+            System.out.println("Intentando conectar a: " + DB_URL);
+            
+            return DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+        } catch (SQLException e) {
+            System.err.println("Error conectando a PostgreSQL: " + e.getMessage());
+            throw new SQLException("Error conectando a PostgreSQL: " + e.getMessage(), e);
+        }
     }
     
     private HttpResponseMessage createSuccessResponse(HttpRequestMessage<Optional<String>> request, Object data) {
