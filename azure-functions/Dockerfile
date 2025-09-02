@@ -14,8 +14,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar el proyecto compilado
-COPY target/azure-functions/azure-functions-1756416882840/ ${AzureWebJobsScriptRoot}/
+# Copiar el proyecto compilado desde la ruta de compilación estandarizada
+COPY target/azure-functions/azure-functions/ ${AzureWebJobsScriptRoot}/
 
 # Exponer el puerto 80 para Azure Functions runtime
 EXPOSE 80
