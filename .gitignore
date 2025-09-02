@@ -19,7 +19,7 @@ logs/
 *.temp
 
 # Archivos de IDE
-.vscode/
+
 .idea/
 *.iml
 
