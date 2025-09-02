@@ -1,0 +1,124 @@
+### Test BFF Endpoints - Inventory System
+### Base URL: http://localhost:8080
+
+### Health Check
+GET http://localhost:8080/api/health HTTP/1.1
+
+###
+
+### Get All Products
+GET http://localhost:8080/api/productos HTTP/1.1
+
+###
+
+### Get Product by ID
+GET http://localhost:8080/api/productos/1 HTTP/1.1
+
+###
+
+### Create New Product
+POST http://localhost:8080/api/productos HTTP/1.1
+Content-Type: application/json
+
+{
+    "sku": "TEST-001",
+    "nombre": "Producto de Prueba",
+    "descripcion": "Producto creado desde REST Client",
+    "stock": 15,
+    "stock_minimo": 3,
+    "stock_maximo": 100,
+    "precio": 25990.0,
+    "categoria_id": 1,
+    "bodega_id": 1,
+    "estado": "ACTIVO",
+    "unidad_medida": "UNIDAD",
+    "peso": 1.5,
+    "dimensiones": "20x15x10 cm"
+}
+
+###
+
+### Update Product by ID
+PUT http://localhost:8080/api/productos/1 HTTP/1.1
+Content-Type: application/json
+
+{
+    "id": 1,
+    "sku": "LAP-000-UPDATED",
+    "nombre": "Laptop HP Actualizada",
+    "descripcion": "Laptop actualizada desde REST Client",
+    "stock": 8,
+    "stock_minimo": 2,
+    "stock_maximo": 1000,
+    "precio": 699990.0,
+    "categoria_id": 1,
+    "bodega_id": 1,
+    "estado": "ACTIVO",
+    "unidad_medida": "UNIDAD",
+    "peso": 2.5,
+    "dimensiones": "35x25x3 cm"
+}
+
+###
+
+### Delete Product by ID
+DELETE http://localhost:8080/api/productos/4 HTTP/1.1
+
+###
+
+### Get All Warehouses
+GET http://localhost:8080/api/bodegas HTTP/1.1
+
+###
+
+### Get Warehouse by ID
+GET http://localhost:8080/api/bodegas/1 HTTP/1.1
+
+###
+
+### Create New Warehouse
+POST http://localhost:8080/api/bodegas HTTP/1.1
+Content-Type: application/json
+
+{
+    "nombre": "Bodega de Prueba",
+    "direccion": "Av. Test 123, Santiago",
+    "telefono": "+56912345678",
+    "email": "test@empresa.com",
+    "responsable": "Usuario de Prueba",
+    "estado": "ACTIVO",
+    "capacidad_max": 5000
+}
+
+###
+
+### Update Warehouse by ID
+PUT http://localhost:8080/api/bodegas/1 HTTP/1.1
+Content-Type: application/json
+
+{
+    "id": 1,
+    "nombre": "Bodega Principal Actualizada",
+    "direccion": "Av. Principal 456, Santiago",
+    "telefono": "+56987654321",
+    "email": "principal@empresa.com",
+    "responsable": "Juan Pérez Actualizado",
+    "estado": "ACTIVO",
+    "capacidad_max": 15000
+}
+
+###
+
+### Delete Warehouse by ID
+DELETE http://localhost:8080/api/bodegas/2 HTTP/1.1
+
+###
+
+### Demo Endpoints (Mock data for testing)
+### Get Demo Products
+GET http://localhost:8080/api/demo/productos HTTP/1.1
+
+###
+
+### Get Demo Warehouses
+GET http://localhost:8080/api/demo/bodegas HTTP/1.1

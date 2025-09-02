@@ -3,6 +3,7 @@ package com.example.bff.api;
 import com.example.bff.dto.Models.Product;
 import com.example.bff.dto.Models.Warehouse;
 import com.example.bff.dto.Models.IdRequest;
+import com.example.bff.dto.Models.FunctionResponse;
 import jakarta.validation.Valid;
 import java.util.Map;
 import java.util.List;
@@ -21,11 +22,9 @@ public class BffController {
   private final WebClient productFunc;
   private final WebClient warehouseFunc;
 
-
   public BffController(
       @Qualifier("productFunc") WebClient productFunc,
-      @Qualifier("warehouseFunc") WebClient warehouseFunc
-  ) {
+      @Qualifier("warehouseFunc") WebClient warehouseFunc) {
     this.productFunc = productFunc;
     this.warehouseFunc = warehouseFunc;
   }
@@ -36,65 +35,11 @@ public class BffController {
     return Mono.just("BFF is running! Database connection will be tested when functions are ready.");
   }
 
-  // Endpoint demo para mostrar datos mock (para demostración cuando las functions no responden)
-  @GetMapping("/demo/productos")
-  public Mono<Map<String, Object>> demoProducts() {
-    List<Map<String, Object>> productos = List.of(
-        Map.of("id", 1, "sku", "LAP-001", "nombre", "Laptop HP Pavilion", 
-               "descripcion", "Laptop 15 pulgadas, 8GB RAM, 256GB SSD",
-               "stock", 10, "precio", 599990, "categoria_id", 1, "bodega_id", 1),
-        Map.of("id", 2, "sku", "CEL-001", "nombre", "Smartphone Samsung Galaxy",
-               "descripcion", "Smartphone 6.1 pulgadas, 128GB", 
-               "stock", 25, "precio", 299990, "categoria_id", 1, "bodega_id", 1),
-        Map.of("id", 3, "sku", "CAM-001", "nombre", "Camiseta Deportiva",
-               "descripcion", "Camiseta 100% algodón, talla M",
-               "stock", 50, "precio", 15990, "categoria_id", 2, "bodega_id", 1),
-        Map.of("id", 4, "sku", "MES-001", "nombre", "Mesa de Centro", 
-               "descripcion", "Mesa de centro de madera, 80x40cm",
-               "stock", 5, "precio", 89990, "categoria_id", 3, "bodega_id", 1)
-    );
-    
-    Map<String, Object> response = Map.of(
-        "success", true,
-        "message", "Datos de demostración - Sistema funcionando correctamente",
-        "productos", productos,
-        "total", productos.size(),
-        "source", "bff-demo-data",
-        "architecture", "serverless-bff-orchestration"
-    );
-    
-    return Mono.just(response);
-  }
-
-  // Endpoint demo para mostrar datos mock de bodegas
-  @GetMapping("/demo/bodegas")
-  public Mono<Map<String, Object>> demoWarehouses() {
-    List<Map<String, Object>> bodegas = List.of(
-        Map.of("id", 1, "nombre", "Bodega Principal", 
-               "direccion", "Av. Principal 123, Santiago",
-               "responsable", "Juan Pérez", "capacidad_max", 10000, "estado", "ACTIVO"),
-        Map.of("id", 2, "nombre", "Bodega Secundaria",
-               "direccion", "Av. Secundaria 456, Valparaíso", 
-               "responsable", "María González", "capacidad_max", 5000, "estado", "ACTIVO")
-    );
-    
-    Map<String, Object> response = Map.of(
-        "success", true,
-        "message", "Datos de demostración - Sistema funcionando correctamente", 
-        "bodegas", bodegas,
-        "total", bodegas.size(),
-        "source", "bff-demo-data",
-        "architecture", "serverless-bff-orchestration"
-    );
-    
-    return Mono.just(response);
-  }
-
   /* ===================== Productos ===================== */
   @PostMapping("/productos")
   public Mono<Product> createProduct(@Valid @RequestBody Product body) {
     return productFunc.post()
-        .uri("/ProductFunction")
+        .uri("/productfunction")
         .contentType(MediaType.APPLICATION_JSON)
         .bodyValue(body)
         .retrieve().bodyToMono(Product.class);
@@ -103,22 +48,24 @@ public class BffController {
   @GetMapping("/productos")
   public Mono<List> listProducts() {
     return productFunc.get()
-        .uri("/ProductFunction")
-        .retrieve().bodyToMono(List.class);
+        .uri("/productfunction")
+        .retrieve().bodyToMono(FunctionResponse.class)
+        .map(response -> (List) response.data);
   }
 
   @GetMapping("/productos/{id}")
-  public Mono<Product> getProduct(@PathVariable Long id) {
+  public Mono<Object> getProduct(@PathVariable Long id) {
     return productFunc.get()
-        .uri("/ProductFunction?id=" + id)
-        .retrieve().bodyToMono(Product.class);
+        .uri("/productfunction?id=" + id)
+        .retrieve().bodyToMono(FunctionResponse.class)
+        .map(response -> response.data);
   }
 
   @PutMapping("/productos/{id}")
   public Mono<Product> updateProduct(@PathVariable Long id, @Valid @RequestBody Product body) {
     body.id = id;
     return productFunc.put()
-        .uri("/ProductFunction?id=" + id)
+        .uri("/productfunction?id=" + id)
         .contentType(MediaType.APPLICATION_JSON)
         .bodyValue(body)
         .retrieve().bodyToMono(Product.class);
@@ -127,7 +74,7 @@ public class BffController {
   @DeleteMapping("/productos/{id}")
   public Mono<Void> deleteProduct(@PathVariable Long id) {
     return productFunc.delete()
-        .uri("/ProductFunction?id=" + id)
+        .uri("/productfunction?id=" + id)
         .retrieve().bodyToMono(Void.class);
   }
 
@@ -135,7 +82,7 @@ public class BffController {
   @PostMapping("/bodegas")
   public Mono<Warehouse> createWarehouse(@Valid @RequestBody Warehouse body) {
     return warehouseFunc.post()
-        .uri("/WarehouseFunction")
+        .uri("/warehousefunction")
         .contentType(MediaType.APPLICATION_JSON)
         .bodyValue(body)
         .retrieve().bodyToMono(Warehouse.class);
@@ -144,22 +91,24 @@ public class BffController {
   @GetMapping("/bodegas")
   public Mono<List> listWarehouses() {
     return warehouseFunc.get()
-        .uri("/WarehouseFunction")
-        .retrieve().bodyToMono(List.class);
+        .uri("/warehousefunction")
+        .retrieve().bodyToMono(FunctionResponse.class)
+        .map(response -> (List) response.data);
   }
 
   @GetMapping("/bodegas/{id}")
-  public Mono<Warehouse> getWarehouse(@PathVariable Long id) {
+  public Mono<Object> getWarehouse(@PathVariable Long id) {
     return warehouseFunc.get()
-        .uri("/WarehouseFunction?id=" + id)
-        .retrieve().bodyToMono(Warehouse.class);
+        .uri("/warehousefunction?id=" + id)
+        .retrieve().bodyToMono(FunctionResponse.class)
+        .map(response -> response.data);
   }
 
   @PutMapping("/bodegas/{id}")
   public Mono<Warehouse> updateWarehouse(@PathVariable Long id, @Valid @RequestBody Warehouse body) {
     body.id = id;
     return warehouseFunc.put()
-        .uri("/WarehouseFunction?id=" + id)
+        .uri("/warehousefunction?id=" + id)
         .contentType(MediaType.APPLICATION_JSON)
         .bodyValue(body)
         .retrieve().bodyToMono(Warehouse.class);
@@ -168,7 +117,7 @@ public class BffController {
   @DeleteMapping("/bodegas/{id}")
   public Mono<Void> deleteWarehouse(@PathVariable Long id) {
     return warehouseFunc.delete()
-        .uri("/WarehouseFunction?id=" + id)
+        .uri("/warehousefunction?id=" + id)
         .retrieve().bodyToMono(Void.class);
   }
 }

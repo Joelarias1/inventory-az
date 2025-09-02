@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+
+  # BFF (Backend for Frontend) conectado a Azure Functions desplegadas
+  bff:
+    build: ./bff
+    container_name: bff-azure-functions
+    environment:
+      - SERVER_PORT=8080
+      - FUNC_PRODUCT_BASE_URL=https://funciones-inventario-joel.azurewebsites.net/api
+      - FUNC_WAREHOUSE_BASE_URL=https://funciones-inventario-joel.azurewebsites.net/api
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+networks:
+  default:
+    name: inventory-network
