@@ -1,71 +1,53 @@
 version: '3.8'
 services:
-  # Base de datos Oracle para desarrollo local
-  oracle-db:
-    image: container-registry.oracle.com/database/express:21.3.0-xe
-    container_name: oracle-xe
-    environment:
-      - ORACLE_PWD=Inventariobd123!
-      - ORACLE_CHARACTERSET=AL32UTF8
-    ports:
-      - "1521:1521"
-      - "5500:5500"
-    volumes:
-      - oracle_data:/opt/oracle/oradata
-      - ./db:/docker-entrypoint-initdb.d/startup
-    healthcheck:
-      test: ["CMD", "sqlplus", "-S", "sys/Inventariobd123!@//localhost:1521/XE", "as", "sysdba", "@/docker-entrypoint-initdb.d/startup/oracle-schema-oci.sql"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
 
-  # Función serverless para Productos
+  # Función serverless para Productos (con PostgreSQL Azure)
   product-function:
     build: ./azure-functions
-    container_name: product-function
+    container_name: product-function-postgres
     environment:
-      - ORACLE_URL=jdbc:oracle:thin:@oracle-xe:1521:XE
-      - ORACLE_USER=system
-      - ORACLE_PASSWORD=Inventariobd123!
+      - POSTGRES_URL=jdbc:postgresql://104.208.158.85:5432/duoc?sslmode=require
+      - POSTGRES_USER=duoc
+      - POSTGRES_PASSWORD=duoc1234
       - FUNCTION_NAME=ProductFunction
     ports:
       - "7071:80"
-    depends_on:
-      oracle-db:
-        condition: service_healthy
+    restart: unless-stopped
 
-  # Función serverless para Bodegas
+  # Función serverless para Bodegas (con PostgreSQL Azure)
   warehouse-function:
     build: ./azure-functions
-    container_name: warehouse-function
+    container_name: warehouse-function-postgres
     environment:
-      - ORACLE_URL=jdbc:oracle:thin:@oracle-xe:1521:XE
-      - ORACLE_USER=system
-      - ORACLE_PASSWORD=Inventariobd123!
+      - POSTGRES_URL=jdbc:postgresql://104.208.158.85:5432/duoc?sslmode=require
+      - POSTGRES_USER=duoc
+      - POSTGRES_PASSWORD=duoc1234
       - FUNCTION_NAME=WarehouseFunction
     ports:
       - "7072:80"
-    depends_on:
-      oracle-db:
-        condition: service_healthy
+    restart: unless-stopped
 
-  # BFF (Backend for Frontend)
+  # BFF (Backend for Frontend) con PostgreSQL Azure
   bff:
     build: ./bff
-    container_name: bff
+    container_name: bff-postgres
     environment:
       - SERVER_PORT=8080
-      - FUNC_PRODUCT_BASE_URL=https://funciones-inventario-joel.azurewebsites.net/api
-      - FUNC_WAREHOUSE_BASE_URL=https://funciones-inventario-joel.azurewebsites.net/api
-      - ORACLE_URL=jdbc:oracle:thin:@oracle-xe:1521:XE
-      - ORACLE_USER=system
-      - ORACLE_PASSWORD=Inventariobd123!
+      - FUNC_PRODUCT_BASE_URL=http://product-function-postgres:80
+      - FUNC_WAREHOUSE_BASE_URL=http://warehouse-function-postgres:80
     ports:
       - "8080:8080"
     depends_on:
-      - product-function
-      - warehouse-function
-      - oracle-db
-
-volumes:
-  oracle_data:
+      product-function:
+        condition: service_started
+      warehouse-function:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+networks:
+  default:
+    name: inventory-network

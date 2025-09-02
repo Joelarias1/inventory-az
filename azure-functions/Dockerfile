@@ -1,5 +1,5 @@
 # Dockerfile para Azure Functions Java
-FROM mcr.microsoft.com/azure-functions/java:4-java11
+FROM mcr.microsoft.com/azure-functions/java:4-java17
 
 # Configuración de Azure Functions
 ENV AzureWebJobsScriptRoot=/home/site/wwwroot \

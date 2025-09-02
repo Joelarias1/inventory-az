@@ -31,12 +31,12 @@ Sistema de inventario de productos implementado con arquitectura serverless, usa
 ### 2. Product Function - Puerto 7071
 - **Tipo**: Azure Function (serverless)
 - **Función**: Operaciones CRUD de productos
-- **Base de datos**: Oracle (con fallback a datos mock)
+- **Base de datos**: Oracle Database
 
 ### 3. Warehouse Function - Puerto 7072  
 - **Tipo**: Azure Function (serverless)
 - **Función**: Operaciones CRUD de bodegas
-- **Base de datos**: Oracle
+- **Base de datos**: Oracle Database
 
 ### 4. Oracle Database - Puerto 1521
 - **Imagen**: Oracle Express Edition 21c
@@ -57,8 +57,12 @@ Sistema de inventario de productos implementado con arquitectura serverless, usa
 git clone <repository-url>
 cd inventory-az
 
-# Iniciar todo el sistema (compila automáticamente)
-./start.sh
+# Compilar proyectos Java
+cd bff && mvn clean package -DskipTests && cd ..
+cd azure-functions && mvn clean package -DskipTests && cd ..
+
+# Iniciar todo el sistema
+docker-compose up --build -d
 ```
 
 ### Inicio Manual
@@ -125,9 +129,13 @@ DELETE /api/WarehouseFunction?id={id}            # Eliminar bodega
 
 ## 🧪 Pruebas
 
-### Probar todos los endpoints automáticamente
+### Verificar funcionamiento
 ```bash
-./test-endpoints.sh
+# Verificar que los servicios estén corriendo
+docker-compose ps
+
+# Verificar health check
+curl http://localhost:8080/api/health
 ```
 
 ### Ejemplos de uso manual
@@ -256,23 +264,24 @@ Para producción, considera:
 
 ## 📝 Notas Técnicas
 
-- Las funciones tienen fallback a datos mock si no pueden conectar a Oracle
+- Todas las operaciones se realizan directamente contra Oracle Database
 - El BFF usa WebFlux para llamadas asíncronas a las functions  
 - Oracle se configura automáticamente con el schema inicial
 - Los contenedores tienen health checks para garantizar disponibilidad
+- No hay datos mock - todo el sistema usa Oracle como fuente de verdad
 
 ## 🎯 Características Implementadas
 
 ✅ Microservicio BFF con Spring Boot  
 ✅ 2 Azure Functions (Productos y Bodegas)  
-✅ Conexión a Oracle Database  
-✅ Operations CRUD completas  
+✅ Integración completa con Oracle Database  
+✅ Operations CRUD completas (sin mock data)  
 ✅ Docker Compose para orquestación  
-✅ Scripts de automatización  
 ✅ Health checks y monitoring  
-✅ Datos de prueba incluidos  
-✅ Manejo de errores  
+✅ Datos iniciales en Oracle incluidos  
+✅ Manejo de errores robusto  
 ✅ Logs detallados  
+✅ Arquitectura serverless pura  
 
 ## 👥 Equipo
 
