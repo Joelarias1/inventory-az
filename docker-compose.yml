@@ -55,8 +55,8 @@ services:
     container_name: bff
     environment:
       - SERVER_PORT=8080
-      - FUNC_PRODUCT_BASE_URL=http://product-function:80
-      - FUNC_WAREHOUSE_BASE_URL=http://warehouse-function:80
+      - FUNC_PRODUCT_BASE_URL=https://funciones-inventario-joel.azurewebsites.net/api
+      - FUNC_WAREHOUSE_BASE_URL=https://funciones-inventario-joel.azurewebsites.net/api
       - ORACLE_URL=jdbc:oracle:thin:@oracle-xe:1521:XE
       - ORACLE_USER=system
       - ORACLE_PASSWORD=Inventariobd123!
