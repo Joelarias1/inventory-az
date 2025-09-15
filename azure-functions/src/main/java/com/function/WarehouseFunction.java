@@ -13,6 +13,7 @@ import graphql.schema.idl.SchemaGenerator;
 import graphql.schema.idl.SchemaParser;
 import graphql.schema.idl.TypeDefinitionRegistry;
 import graphql.ExecutionResult;
+import graphql.ExecutionInput;
 import graphql.schema.DataFetcher;
 import static graphql.schema.idl.RuntimeWiring.newRuntimeWiring;
 
@@ -308,7 +309,13 @@ public class WarehouseFunction {
                 return createErrorResponse(request, "Query GraphQL requerido", 400);
             }
 
-            ExecutionResult executionResult = graphQL.execute(query);
+            // CONSTRUIR LA EJECUCIÓN CON VARIABLES
+            ExecutionInput executionInput = ExecutionInput.newExecutionInput()
+                .query(query)
+                .variables(variables != null ? variables : Collections.emptyMap())
+                .build();
+
+            ExecutionResult executionResult = graphQL.execute(executionInput);
 
             Map<String, Object> response = new HashMap<>();
             response.put("data", executionResult.getData());
